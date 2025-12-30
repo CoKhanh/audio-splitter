@@ -149,3 +149,96 @@ async def download_youtube_audio(request: Request):
         }
     except Exception as e:
         return {"error": str(e), "success": False}
+
+@app.post("/download-and-separate")
+async def download_and_separate_youtube_audio(request: Request):
+    """Download audio from YouTube URL and automatically separate it"""
+    body = await request.json()
+    youtube_url = body.get("url")
+
+    if not youtube_url:
+        return {"error": "YouTube URL is required"}
+
+    # Create downloads directory
+    download_dir = Path("downloads")
+    download_dir.mkdir(exist_ok=True)
+
+    # Configure yt-dlp options
+    ydl_opts = {
+        # Download best available audio quality
+        'format': 'bestaudio/best',
+
+        # Post-processing: extract audio and convert to MP3
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',  # Use FFmpeg to extract audio
+            'preferredcodec': 'mp3',       # Convert to MP3 format
+            'preferredquality': '192',     # Set bitrate to 192 kbps
+        }],
+
+        # Output template: save as "Video Title.mp3" in downloads directory
+        'outtmpl': str(download_dir / '%(title)s.%(ext)s'),
+
+        # Suppress console output
+        'quiet': True,
+
+        # Don't show warnings
+        'no_warnings': True,
+
+        # Download only single video, not playlist
+        'noplaylist': True,
+
+        # Bypass SSL certificate verification (helps with some download issues)
+        'nocheckcertificate': True,
+
+        # Mimic a real browser to avoid 403 Forbidden errors
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+
+        # Use multiple player clients for better compatibility with YouTube
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web']  # Try Android and web clients
+            }
+        }
+    }
+
+    try:
+        # Step 1: Download the audio
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = await asyncio.to_thread(ydl.extract_info, youtube_url, download=True)
+            video_title = info['title']
+            downloaded_file_path = download_dir / f"{video_title}.mp3"
+
+        # Step 2: Separate the audio
+        await asyncio.to_thread(
+            demucs.separate.main,
+            ["--mp3", "--two-stems", "vocals", str(downloaded_file_path)]
+        )
+
+        # Step 3: Get the output folder path
+        file_name_without_ext = Path(video_title).stem
+        output_folder = Path("separated/htdemucs") / file_name_without_ext
+
+        # Step 4: Build URLs for separated files
+        base_url = f"{request.url.scheme}://{request.url.netloc}"
+        files_dict = {}
+
+        if output_folder.exists():
+            for file_path in output_folder.glob("*.mp3"):
+                file_name = file_path.stem
+                relative_path = file_path.relative_to("separated/htdemucs")
+                file_url = f"{base_url}/audio/{relative_path}"
+                files_dict[file_name] = file_url
+
+        # Step 5: Delete the downloaded file after processing
+        if downloaded_file_path.exists():
+            downloaded_file_path.unlink()
+
+        # Step 6: Return all information
+        return {
+            "success": True,
+            "title": video_title,
+            "separated_audio": files_dict
+        }
+
+    except Exception as e:
+        return {"error": str(e), "success": False}
