@@ -142,11 +142,89 @@ http://your-vps-ip:8000
 
 ## API Endpoints
 
-- `GET /` - Health check
-- `GET /items/{item_id}` - Example endpoint with query parameter
+### `GET /`
+Health check endpoint.
+
+**Response:**
+```json
+{
+  "Hello": "World"
+}
+```
+
+### `POST /process`
+Upload an audio file and separate vocals from instrumentals using Demucs AI.
+
+**Request:**
+- Method: `POST`
+- Content-Type: `multipart/form-data`
+- Body: Form data with `file` field containing the audio file
+
+**Example using cURL:**
+```bash
+curl -X POST "http://localhost:8000/process" \
+  -F "file=@/path/to/your/song.mp3"
+```
+
+**Example using Python:**
+```python
+import requests
+
+with open("song.mp3", "rb") as f:
+    response = requests.post(
+        "http://localhost:8000/process",
+        files={"file": f}
+    )
+print(response.json())
+```
+
+**Response:**
+```json
+{
+  "vocals": "http://localhost:8000/audio/song/vocals.mp3",
+  "no_vocals": "http://localhost:8000/audio/song/no_vocals.mp3"
+}
+```
+
+### `GET /audio/{path}`
+Static file serving for processed audio files. Access the URLs returned by `/process` endpoint.
+
+**Example:**
+```
+http://localhost:8000/audio/song/vocals.mp3
+http://localhost:8000/audio/song/no_vocals.mp3
+```
+
+## How It Works
+
+1. Upload an audio file via `POST /process`
+2. The file is saved temporarily to `uploads/` directory
+3. Demucs AI processes the audio and separates vocals from instrumentals
+4. Original uploaded file is automatically deleted
+5. Separated tracks are saved in `separated/htdemucs/{filename}/`
+6. Returns public URLs to download the separated tracks
+
+## Directory Structure
+
+```
+be-2/
+├── main.py              # FastAPI application
+├── requirements.txt     # Python dependencies
+├── README.md           # This file
+├── .gitignore          # Git ignore rules
+├── uploads/            # Temporary upload directory (auto-cleaned)
+└── separated/          # Output directory for processed audio
+    └── htdemucs/       # Demucs model output
+        └── {filename}/ # Per-file output folders
+            ├── vocals.mp3
+            └── no_vocals.mp3
+```
 
 ## Notes
 
 - The urllib3 warning on macOS (LibreSSL) won't appear on Linux VPS (uses OpenSSL)
 - Make sure to configure firewall rules to allow port 80 (HTTP) or 443 (HTTPS)
 - For production, consider using environment variables for sensitive configuration
+- Uploaded files are automatically deleted after processing to save disk space
+- Processed audio files are publicly accessible via the `/audio/` route
+- The API uses the `mdx_extra` Demucs model with vocals/instrumentals separation
