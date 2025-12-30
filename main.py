@@ -21,8 +21,8 @@ def read_root():
 def read_item(item_id: int, q: Union[str, None] = None):
     return {"item_id": item_id, "q": q}
 
-@app.post("/process")
-async def process_audio(request: Request, file: UploadFile = File(...)):
+@app.post("/separate")
+async def separate_audio(request: Request, file: UploadFile = File(...)):
     # Save the uploaded file temporarily
     upload_dir = Path("uploads")
     upload_dir.mkdir(exist_ok=True)

@@ -152,7 +152,7 @@ Health check endpoint.
 }
 ```
 
-### `POST /process`
+### `POST /separate`
 Upload an audio file and separate vocals from instrumentals using Demucs AI.
 
 **Request:**
@@ -162,7 +162,7 @@ Upload an audio file and separate vocals from instrumentals using Demucs AI.
 
 **Example using cURL:**
 ```bash
-curl -X POST "http://localhost:8000/process" \
+curl -X POST "http://localhost:8000/separate" \
   -F "file=@/path/to/your/song.mp3"
 ```
 
@@ -172,7 +172,7 @@ import requests
 
 with open("song.mp3", "rb") as f:
     response = requests.post(
-        "http://localhost:8000/process",
+        "http://localhost:8000/separate",
         files={"file": f}
     )
 print(response.json())
@@ -187,7 +187,7 @@ print(response.json())
 ```
 
 ### `GET /audio/{path}`
-Static file serving for processed audio files. Access the URLs returned by `/process` endpoint.
+Static file serving for processed audio files. Access the URLs returned by `/separate` endpoint.
 
 **Example:**
 ```
@@ -197,7 +197,7 @@ http://localhost:8000/audio/song/no_vocals.mp3
 
 ## How It Works
 
-1. Upload an audio file via `POST /process`
+1. Upload an audio file via `POST /separate`
 2. The file is saved temporarily to `uploads/` directory
 3. Demucs AI processes the audio and separates vocals from instrumentals
 4. Original uploaded file is automatically deleted
