@@ -1,3 +1,12 @@
+---
+title: Audio Splitter API
+emoji: 🎵
+colorFrom: purple
+colorTo: pink
+sdk: docker
+pinned: false
+---
+
 # Audio Splitter Backend
 
 FastAPI application using Demucs for audio separation.
