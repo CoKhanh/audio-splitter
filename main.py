@@ -1,6 +1,9 @@
 from typing import Union
 import asyncio
 from pathlib import Path
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 from fastapi import FastAPI, Request, UploadFile, File
 from fastapi.staticfiles import StaticFiles
@@ -150,11 +153,58 @@ async def download_youtube_audio(request: Request):
     except Exception as e:
         return {"error": str(e), "success": False}
 
+def send_email_notification(to_email: str, video_title: str, files_dict: dict, base_url: str):
+    """Send email with separated audio download links"""
+    # Email configuration (you should move these to environment variables)
+    sender_email = "duongcokhanh17110315@gmail.com"  # Replace with your email
+    sender_password = "evet bbrd cwgp mbxz"  # Replace with your app password
+
+    # Create email message
+    msg = MIMEMultipart('alternative')
+    msg['From'] = sender_email
+    msg['To'] = to_email
+    msg['Subject'] = f"Audio Separation Complete: {video_title}"
+
+    # Create HTML email body
+    html_body = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; padding: 20px;">
+        <h2>Your audio separation is complete!</h2>
+        <p><strong>Video:</strong> {video_title}</p>
+        <h3>Download Links:</h3>
+        <ul>
+    """
+
+    for file_name, file_url in files_dict.items():
+        html_body += f'<li><a href="{file_url}">{file_name}</a></li>'
+
+    html_body += """
+        </ul>
+        <p>Click on the links above to download your separated audio files.</p>
+        <p>Best regards,<br>Audio Splitter</p>
+      </body>
+    </html>
+    """
+
+    # Attach HTML body
+    msg.attach(MIMEText(html_body, 'html'))
+
+    # Send email using Gmail SMTP
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login(sender_email, sender_password)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        return False
+
 @app.post("/download-and-separate")
 async def download_and_separate_youtube_audio(request: Request):
     """Download audio from YouTube URL and automatically separate it"""
     body = await request.json()
     youtube_url = body.get("url")
+    email = body.get("email")  # Optional email parameter
 
     if not youtube_url:
         return {"error": "YouTube URL is required"}
@@ -229,15 +279,27 @@ async def download_and_separate_youtube_audio(request: Request):
                 file_url = f"{base_url}/audio/{relative_path}"
                 files_dict[file_name] = file_url
 
-        # Step 5: Delete the downloaded file after processing
+        # Step 5: Send email notification if email is provided
+        email_sent = False
+        if email:
+            email_sent = await asyncio.to_thread(
+                send_email_notification,
+                email,
+                video_title,
+                files_dict,
+                base_url
+            )
+
+        # Step 6: Delete the downloaded file after processing
         if downloaded_file_path.exists():
             downloaded_file_path.unlink()
 
-        # Step 6: Return all information
+        # Step 7: Return all information
         return {
             "success": True,
             "title": video_title,
-            "separated_audio": files_dict
+            "separated_audio": files_dict,
+            "email_sent": email_sent
         }
 
     except Exception as e:
